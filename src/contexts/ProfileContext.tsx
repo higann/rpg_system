@@ -61,7 +61,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setAvatarState(loadAvatar());
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
@@ -69,23 +69,32 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         if (currentUser) {
           setIsLoading(true);
           // Try loading from Supabase first, fall back to localStorage cache
-          const dbProfile = await fetchProfileFromDB(currentUser.id);
-          if (dbProfile) {
-            skipNextDBSync.current = true;
-            setProfile(dbProfile);
-            saveProfile(dbProfile); // update local cache
-            setStats(calculateAllStats(dbProfile));
-          } else {
-            // No DB profile yet — check localStorage cache (e.g. offline or first login)
-            const localProfile = loadProfile();
-            if (localProfile) {
-              setProfile(localProfile);
-              setStats(calculateAllStats(localProfile));
-            }
-          }
+          fetchProfileFromDB(currentUser.id)
+            .then(dbProfile => {
+              if (dbProfile) {
+                skipNextDBSync.current = true;
+                setProfile(dbProfile);
+                saveProfile(dbProfile); // update local cache
+                setStats(calculateAllStats(dbProfile));
+              } else {
+                // No DB profile yet — check localStorage cache (e.g. offline or first login)
+                const localProfile = loadProfile();
+                if (localProfile) {
+                  setProfile(localProfile);
+                  setStats(calculateAllStats(localProfile));
+                }
+              }
+            })
+            .catch(console.error)
+            .finally(() => {
+              setIsLoading(false);
+              setAuthLoading(false);
+            });
+        } else {
+          // No user on INITIAL_SESSION means logged out — clear loading
           setIsLoading(false);
+          setAuthLoading(false);
         }
-        setAuthLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setProfile(null);
         setStats({ willPower: 1, knowledge: 1, luck: 1, intelligence: 1 });
