@@ -4,12 +4,13 @@
 import { useState } from 'react';
 import { useSkills } from '@/hooks/useSkills';
 import { getXpToNextTier } from '@/lib/formulas/intelligence';
+import { TIER_THRESHOLDS } from '@/lib/models/types';
 import { AddSkillForm } from './AddSkillForm';
 import { EditSkillForm } from './EditSkillForm';
 
-export function SkillsGrid() {
+export function SkillsGrid({ initialShowAdd = false }: { initialShowAdd?: boolean }) {
   const { skills, deleteSkill, addSkillXP } = useSkills();
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(initialShowAdd);
   const [editingSkill, setEditingSkill] = useState<typeof skills[0] | null>(null);
   const [xpInputs, setXpInputs] = useState<{ [key: string]: number }>({});
   
@@ -25,21 +26,17 @@ export function SkillsGrid() {
   };
 
   const getXpProgress = (currentXp: number, tier: string): number => {
-    const thresholds: { [key: string]: { min: number; max: number } } = {
-      D: { min: 0, max: 250 },
-      C: { min: 250, max: 500 },
-      B: { min: 500, max: 1000 },
-      A: { min: 1000, max: 2500 },
-      S: { min: 2500, max: 5000 },
+    // Tier ranges derived from TIER_THRESHOLDS in types.ts
+    const tierRanges: Record<string, { min: number; max: number }> = {
+      D: { min: 0, max: TIER_THRESHOLDS.C },
+      C: { min: TIER_THRESHOLDS.C, max: TIER_THRESHOLDS.B },
+      B: { min: TIER_THRESHOLDS.B, max: TIER_THRESHOLDS.A },
+      A: { min: TIER_THRESHOLDS.A, max: TIER_THRESHOLDS.S },
+      S: { min: TIER_THRESHOLDS.S, max: TIER_THRESHOLDS.S * 2 }, // visual cap at 2× S threshold
     };
 
-    const range = thresholds[tier];
+    const range = tierRanges[tier];
     if (!range) return 100;
-
-    if (tier === 'S') {
-      // S tier has no upper limit, show progress to 5000 as max
-      return Math.min((currentXp / 5000) * 100, 100);
-    }
 
     const progress = ((currentXp - range.min) / (range.max - range.min)) * 100;
     return Math.min(Math.max(progress, 0), 100);
@@ -49,15 +46,10 @@ export function SkillsGrid() {
     return (
       <div className="text-center py-12">
         <div className="mb-6">
-          <div className="text-6xl mb-4">🎯</div>
-          <p className="text-gray-400 mb-2">No skills yet!</p>
-          <p className="text-sm text-gray-500">Start building your expertise and boost your Intelligence stat.</p>
+          <p className="text-sm text-[var(--text-3)] mb-4">No skills yet. Add your first to start earning Intelligence.</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="btn-primary"
-        >
-          + Create Your First Skill
+        <button onClick={() => setShowAddForm(true)} className="btn-primary">
+          Add Skill
         </button>
 
         {showAddForm && (
@@ -82,27 +74,21 @@ export function SkillsGrid() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">Your Skills</h2>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="btn-primary"
-        >
-          + Add Skill
-        </button>
+        <p className="stat-label">Your Skills</p>
+        <button onClick={() => setShowAddForm(true)} className="btn-primary">Add Skill</button>
       </div>
 
-      {/* Skills by Tier */}
       {Object.entries(groupedSkills).map(([tier, tierSkills]) => {
         if (tierSkills.length === 0) return null;
 
         return (
           <div key={tier}>
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <span className={`tier-badge tier-${tier}`}>{tier} Tier</span>
-              <span className="text-gray-500 text-sm">({tierSkills.length} skills)</span>
-            </h3>
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`tier-badge tier-${tier}`}>{tier}</span>
+              <span className="text-[11px] text-[var(--text-3)]">{tierSkills.length} skill{tierSkills.length !== 1 ? 's' : ''}</span>
+            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {tierSkills.map(skill => {
                 const xpToNext = getXpToNextTier(skill.xp);
                 const progress = getXpProgress(skill.xp, skill.tier);
@@ -110,46 +96,42 @@ export function SkillsGrid() {
                 return (
                   <div
                     key={skill.id}
-                    className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 hover:border-purple-500/50 transition"
+                    className="p-4 rounded-xl"
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                   >
-                    {/* Header */}
-                        <div className="flex justify-between items-start mb-3">
-                        <div>
-                            <h4 className="text-white font-semibold text-lg">{skill.name}</h4>
-                            <p className="text-sm text-gray-400 mt-1">
-                            {skill.xp} XP • +{skill.intelligenceContribution} Intelligence
-                            </p>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                            onClick={() => setEditingSkill(skill)}
-                            className="text-purple-400 hover:text-purple-300 text-sm"
-                            >
-                            Edit
-                            </button>
-                            <button
-                            onClick={() => {
-                                if (confirm(`Delete "${skill.name}"?`)) {
-                                deleteSkill(skill.id);
-                                }
-                            }}
-                            className="text-red-400 hover:text-red-300 text-sm"
-                            >
-                            Delete
-                            </button>
-                        </div>
-                        </div>
-
-                    {/* Progress Bar */}
-                    <div className="mb-3">
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>Progress to {tier === 'S' ? 'Max' : 'Next Tier'}</span>
-                        <span>{xpToNext === null ? 'Max Level' : `${xpToNext} XP needed`}</span>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--text)]">{skill.name}</p>
+                        <p className="text-[11px] text-[var(--text-3)] mt-0.5">
+                          {skill.xp} XP · +{skill.intelligenceContribution} INT
+                        </p>
                       </div>
-                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-500"
-                          style={{ width: `${progress}%` }}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setEditingSkill(skill)}
+                          className="text-[11px] text-[var(--text-3)] hover:text-[var(--text-2)] transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Delete "${skill.name}"?`)) deleteSkill(skill.id); }}
+                          className="text-[11px] text-[var(--text-3)] hover:text-rose-400 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[10px] text-[var(--text-3)] mb-1.5">
+                        <span>{tier === 'S' ? 'Max tier' : 'To next tier'}</span>
+                        <span>{xpToNext === null ? '—' : `${xpToNext} XP`}</span>
+                      </div>
+                      <div className="h-[2px] rounded-full overflow-hidden" style={{ background: 'var(--surface-3)' }}>
+                        <div
+                          className="h-full transition-all duration-500"
+                          style={{ width: `${progress}%`, background: 'var(--stat-int)' }}
                         />
                       </div>
                     </div>
@@ -161,18 +143,13 @@ export function SkillsGrid() {
                         min="1"
                         step="1"
                         value={xpInputs[skill.id] || ''}
-                        onChange={(e) => setXpInputs({ 
-                          ...xpInputs, 
-                          [skill.id]: e.target.value ? parseInt(e.target.value) : 0 
-                        })}
-                        className="flex-1 px-3 py-2 bg-gray-900 border border-gray-600 rounded text-white text-sm focus:border-purple-500 focus:outline-none"
+                        onChange={e => setXpInputs({ ...xpInputs, [skill.id]: e.target.value ? parseInt(e.target.value) : 0 })}
+                        className="flex-1 px-3 py-1.5 rounded-lg text-sm text-[var(--text)] outline-none"
+                        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
                         placeholder="XP amount"
                       />
-                      <button
-                        onClick={() => handleAddXP(skill.id)}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded transition text-sm font-medium"
-                      >
-                        + Add XP
+                      <button onClick={() => handleAddXP(skill.id)} className="btn-primary px-3 py-1.5">
+                        Add XP
                       </button>
                     </div>
                   </div>

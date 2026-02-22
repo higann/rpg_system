@@ -12,157 +12,135 @@ interface EditSkillFormProps {
   onSuccess: () => void;
 }
 
+const OVERLAY: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 9999,
+  background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+};
+
+const PANEL: React.CSSProperties = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)',
+  width: '100%', maxWidth: 440,
+  maxHeight: '90vh', overflowY: 'auto',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '0.5rem 0.875rem',
+  background: 'var(--bg)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)',
+  color: 'var(--text)',
+  fontSize: '0.875rem',
+  outline: 'none',
+};
+
 export function EditSkillForm({ skill, onClose, onSuccess }: EditSkillFormProps) {
   const { updateSkill } = useSkills();
-  const [formData, setFormData] = useState({
-    name: skill.name,
-    xp: skill.xp,
-  });
+  const [formData, setFormData] = useState({ name: skill.name, xp: skill.xp });
 
   const previewTier = determineSkillTier(formData.xp);
   const previewPoints = getTierPoints(previewTier);
+  const tierChanged = previewTier !== skill.tier;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     const tier = determineSkillTier(formData.xp);
     const intelligenceContribution = getTierPoints(tier);
-
-    updateSkill(skill.id, {
-      name: formData.name,
-      xp: formData.xp,
-      tier,
-      intelligenceContribution,
-    });
-
+    updateSkill(skill.id, { name: formData.name, xp: formData.xp, tier, intelligenceContribution });
     onSuccess();
     onClose();
   };
 
   return (
-    <div 
-      className="fixed top-0 left-0 right-0 bottom-0 z-[9999] flex items-center justify-center p-4"
-      style={{ 
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        backdropFilter: 'blur(4px)'
-      }}
-      onClick={onClose}
-    >
-      <div 
-        className="bg-[#1a1f3a] border border-purple-500/30 rounded-lg w-full max-w-lg shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'relative',
-          zIndex: 10000
-        }}
-      >
-        <div className="p-6">
+    <div style={OVERLAY} onClick={onClose}>
+      <div style={PANEL} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '1.5rem' }}>
+
           {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-purple-400">Edit Skill</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white text-3xl leading-none w-8 h-8 flex items-center justify-center"
-              type="button"
-            >
-              ×
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <p className="stat-label">Skills</p>
+              <p style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>Edit Skill</p>
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '1.25rem', lineHeight: 1, padding: '0.25rem' }}>×</button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Skill Name */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+            {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Skill Name *
-              </label>
+              <p className="stat-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Name</p>
               <input
-                type="text"
-                required
+                type="text" required
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                style={inputStyle}
                 placeholder="e.g., Chess, Programming, Guitar"
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent-20)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               />
             </div>
 
             {/* XP */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Total XP
-              </label>
+              <p className="stat-label" style={{ display: 'block', marginBottom: '0.375rem' }}>Total XP</p>
               <input
-                type="number"
-                min="0"
-                step="1"
+                type="number" min="0" step="1"
                 value={formData.xp || ''}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  xp: e.target.value ? parseInt(e.target.value) : 0 
-                })}
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:outline-none"
+                onChange={e => setFormData({ ...formData, xp: e.target.value ? parseInt(e.target.value) : 0 })}
+                style={inputStyle}
                 placeholder="0"
+                onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent-20)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Adjust total XP to recalculate tier
-              </p>
+              <p style={{ fontSize: '0.6875rem', color: 'var(--text-3)', marginTop: '0.375rem' }}>Adjust total XP to recalculate tier</p>
             </div>
 
-            {/* Tier Preview */}
-            <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-gray-300 text-sm">Current Tier</span>
-                <span className={`tier-badge tier-${skill.tier} text-lg`}>
-                  {skill.tier}
-                </span>
+            {/* Tier preview */}
+            <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.875rem' }}>
+              <p className="stat-label" style={{ marginBottom: '0.625rem' }}>Tier</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-2)' }}>Current</span>
+                <span className={`tier-badge tier-${skill.tier}`}>{skill.tier}</span>
               </div>
-              {previewTier !== skill.tier && (
-                <div className="flex justify-between items-center mb-3 pb-3 border-b border-purple-500/30">
-                  <span className="text-gray-300 text-sm">New Tier</span>
-                  <span className={`tier-badge tier-${previewTier} text-lg`}>
-                    {previewTier}
-                  </span>
+              {tierChanged && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-2)' }}>New</span>
+                  <span className={`tier-badge tier-${previewTier}`}>{previewTier}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center">
-                <span className="text-gray-300 text-sm">Intelligence Contribution</span>
-                <span className="text-purple-400 font-bold">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-2)' }}>Intelligence</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--stat-int)' }}>
                   {previewPoints !== skill.intelligenceContribution && (
-                    <span className="text-gray-500 line-through mr-2">+{skill.intelligenceContribution}</span>
+                    <span style={{ color: 'var(--text-3)', textDecoration: 'line-through', marginRight: '0.5rem', fontWeight: 400 }}>+{skill.intelligenceContribution}</span>
                   )}
                   +{previewPoints}
                 </span>
               </div>
             </div>
 
-            {/* Tier Thresholds Info */}
-            <div className="text-xs text-gray-500 space-y-1">
-              <p className="font-semibold text-gray-400 mb-2">Tier Thresholds:</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div>D Tier: 0-249 XP (+5 INT)</div>
-                <div>C Tier: 250-499 XP (+10 INT)</div>
-                <div>B Tier: 500-999 XP (+25 INT)</div>
-                <div>A Tier: 1000-2499 XP (+50 INT)</div>
-                <div className="col-span-2">S Tier: 2500+ XP (+100 INT)</div>
+            {/* Tier reference */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
+              {[['D', '0–249 XP', '+5'], ['C', '250–499 XP', '+10'], ['B', '500–999 XP', '+25'], ['A', '1000–2499 XP', '+50']].map(([tier, xp, pts]) => (
+                <div key={tier} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className={`tier-badge tier-${tier}`}>{tier}</span>
+                  <span style={{ fontSize: '0.6875rem', color: 'var(--text-3)' }}>{xp} · {pts} INT</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', gridColumn: 'span 2' }}>
+                <span className="tier-badge tier-S">S</span>
+                <span style={{ fontSize: '0.6875rem', color: 'var(--text-3)' }}>2500+ XP · +100 INT</span>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4">
-              <button
-                type="submit"
-                className="btn-primary flex-1"
-              >
-                Save Changes
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition"
-              >
-                Cancel
-              </button>
+            <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.25rem' }}>
+              <button type="submit" className="btn-primary" style={{ flex: 1 }}>Save changes</button>
+              <button type="button" onClick={onClose} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
             </div>
           </form>
         </div>

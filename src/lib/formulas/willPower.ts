@@ -1,77 +1,46 @@
 // src/lib/formulas/willPower.ts
 
-import { FORMULA_CONSTANTS } from '../models/types';
+// WillPower: Streak-weighted point accumulation
+// Starts at 0. Grows with consistency. Breaking streaks hurts proportionally.
+
+export const WP_BASE = 10;            // Base WP per completion
+export const WP_STREAK_BONUS = 0.05;  // +5% per streak day
+export const WP_STREAK_CAP = 10;      // Streak bonus caps at 10 days (+50% max)
+export const WP_MISS_RATE = 2;        // WP lost per streak day on miss
 
 /**
- * Calculate habit freshness factor
- * Fresh habits (low completions) = high freshness (challenging)
- * Old habits (high completions) = low freshness (automatic)
- * 
- * Formula: 1 / (1 + completions / 50)
- * 
- * Examples:
- * - 10 completions → 0.83 (fresh)
- * - 50 completions → 0.50 (forming)
- * - 100 completions → 0.33 (established)
- * - 500 completions → 0.09 (automatic)
+ * WP earned for completing a habit today
+ * Formula: 10 × (1 + min(streak, 10) × 0.05)
+ *
+ * streak  0  → +10 WP
+ * streak  5  → +12.5 WP
+ * streak 10+ → +15 WP (capped)
+ *
+ * Long streaks are more rewarding — but also riskier to break.
  */
-export function calculateHabitFreshness(completions: number): number {
-  return 1 / (1 + completions / FORMULA_CONSTANTS.HABIT_FRESHNESS_DIVISOR);
+export function calculateWillPowerGain(currentStreak: number): number {
+  const multiplier = 1 + Math.min(currentStreak, WP_STREAK_CAP) * WP_STREAK_BONUS;
+  return Math.round(WP_BASE * multiplier * 10) / 10;
 }
 
 /**
- * Calculate expected performance for ELO calculation
- * Fresh habits are harder to maintain (lower expected)
- * Old habits are easier to maintain (higher expected)
- * 
- * Formula: 1 - (freshness × 0.8)
+ * WP lost for breaking a streak (missing a day)
+ * Formula: streak × 2
+ * No penalty if streak was 0 — can't lose what you never built.
+ *
+ * streak  0  →  0 WP lost
+ * streak  5  → 10 WP lost
+ * streak 10  → 20 WP lost
+ * streak 20  → 40 WP lost
  */
-export function calculateExpected(freshness: number): number {
-  return 1 - (freshness * FORMULA_CONSTANTS.FRESHNESS_MULTIPLIER);
+export function calculateWillPowerPenalty(currentStreak: number): number {
+  if (currentStreak <= 0) return 0;
+  return currentStreak * WP_MISS_RATE;
 }
 
 /**
- * Calculate Will Power change using ELO formula with habit aging
- * 
- * @param actual - 1 if completed, 0 if missed
- * @param completions - Total times this habit has been completed
- * @param K - Sensitivity constant (default: 32)
- * @returns Change in Will Power (can be positive or negative)
- * 
- * How it works:
- * - New habits: Big gains when completed, moderate penalty when missed
- * - Old habits: Small gains when completed, HEAVY penalty when missed
- *   (You're expected to maintain automatic behaviors!)
+ * Apply a WP delta to the current value, floored at 0
  */
-export function calculateWillPowerChange(
-  actual: 0 | 1,
-  completions: number,
-  K: number = FORMULA_CONSTANTS.WILL_POWER_K
-): number {
-  const freshness = calculateHabitFreshness(completions);
-  const expected = calculateExpected(freshness);
-  
-  // ELO formula: K × (Actual - Expected)
-  const change = K * (actual - expected);
-  
-  // Round to 2 decimal places for cleaner numbers
-  return Math.round(change * 100) / 100;
-}
-
-/**
- * Calculate total Will Power from all habits
- * 
- * @param currentWillPower - Current Will Power value
- * @param habitChanges - Array of changes from each habit
- * @returns New Will Power value
- */
-export function calculateTotalWillPower(
-  currentWillPower: number,
-  habitChanges: number[]
-): number {
-  const totalChange = habitChanges.reduce((sum, change) => sum + change, 0);
-  const newWillPower = currentWillPower + totalChange;
-  
-  // Floor at 0 (can't have negative Will Power)
-  return Math.max(0, Math.round(newWillPower * 100) / 100);
+export function applyWillPowerChange(current: number, delta: number): number {
+  return Math.max(0, Math.round((current + delta) * 10) / 10);
 }

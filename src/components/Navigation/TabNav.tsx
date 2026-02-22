@@ -1,7 +1,4 @@
-// src/components/Navigation/TabNav.tsx
 'use client';
-
-import { useState } from 'react';
 
 type Tab = 'dashboard' | 'habits' | 'skills';
 
@@ -10,29 +7,24 @@ interface TabNavProps {
   onTabChange: (tab: Tab) => void;
 }
 
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'habits',    label: 'Habits'    },
+  { id: 'skills',    label: 'Skills'    },
+];
+
 export function TabNav({ activeTab, onTabChange }: TabNavProps) {
   return (
-    <nav className="border-b border-gray-700 mb-8">
-      <div className="flex gap-1">
+    <nav className="flex gap-1">
+      {TABS.map(({ id, label }) => (
         <button
-          onClick={() => onTabChange('dashboard')}
-          className={`tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+          key={id}
+          onClick={() => onTabChange(id)}
+          className={`tab ${activeTab === id ? 'active' : ''}`}
         >
-          📊 Dashboard
+          {label}
         </button>
-        <button
-          onClick={() => onTabChange('habits')}
-          className={`tab ${activeTab === 'habits' ? 'active' : ''}`}
-        >
-          ✓ Habits
-        </button>
-        <button
-          onClick={() => onTabChange('skills')}
-          className={`tab ${activeTab === 'skills' ? 'active' : ''}`}
-        >
-          🎯 Skills
-        </button>
-      </div>
+      ))}
     </nav>
   );
 }

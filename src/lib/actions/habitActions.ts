@@ -1,27 +1,37 @@
 // src/lib/actions/habitActions.ts
 
 import { Habit, Skill, CharacterProfile } from '@/lib/models/types';
-import { calculateWillPowerChange } from '@/lib/formulas/willPower';
+import { calculateWillPowerGain, calculateWillPowerPenalty } from '@/lib/formulas/willPower';
+import { calculateCharacterLevel } from '@/lib/formulas/characterLevel';
 import { determineSkillTier, getTierPoints } from '@/lib/formulas/intelligence';
 import { wasCompletedToday, shouldBreakStreak } from '@/lib/utils/dateUtils';
 
 /**
- * XP earned per habit completion
- * Boolean habits: 10 XP flat
- * Number habits: 10 XP × value
+ * Check if a habit value meets the daily goal
+ */
+export function meetsGoal(habit: Habit, value?: number): boolean {
+  if (habit.type === 'boolean') {
+    return value === 1;
+  } else if (habit.type === 'number' && habit.dailyGoal !== undefined) {
+    return value !== undefined && value >= habit.dailyGoal;
+  }
+  return true;
+}
+
+/**
+ * XP earned per habit completion for linked skill
+ * Boolean: 10 XP flat
+ * Number: 10 XP × value
  */
 export function calculateHabitXP(habit: Habit, value?: number): number {
-  if (habit.type === 'boolean') {
-    return 10;
-  } else if (habit.type === 'number' && value !== undefined) {
-    return 10 * value;
-  }
+  if (habit.type === 'boolean') return 10;
+  if (habit.type === 'number' && value !== undefined) return 10 * value;
   return 0;
 }
 
 /**
- * Complete a habit - the core action
- * Updates: habit stats, Will Power, linked skill XP, tier promotions
+ * Complete a habit — the core action.
+ * Updates: WillPower (streak-based), habit stats, linked skill XP, character level.
  */
 export function performHabitCompletion(
   habit: Habit,
@@ -33,40 +43,44 @@ export function performHabitCompletion(
   willPowerChange: number;
   xpGained: number;
   tierPromotion?: { skillName: string; oldTier: string; newTier: string };
+  goalMet: boolean;
 } {
-  // Prevent double-completion
   if (wasCompletedToday(habit.lastCompletedDate)) {
     throw new Error('Habit already completed today');
   }
 
+  const goalMet = meetsGoal(habit, value);
   const currentCompletions = habit.totalCompletions || 0;
   const currentStreak = habit.currentStreak || 0;
 
-  // Calculate Will Power change
-  const willPowerChange = calculateWillPowerChange(1, currentCompletions);
+  // WP gain is based on current streak (longer streaks = bigger reward)
+  const willPowerChange = goalMet ? calculateWillPowerGain(currentStreak) : 0;
 
   // Update habit
   const updatedHabit: Habit = {
     ...habit,
-    totalCompletions: currentCompletions + 1,
+    totalCompletions: goalMet ? currentCompletions + 1 : currentCompletions,
     lastCompletedDate: new Date(),
-    currentStreak: shouldBreakStreak(habit.lastCompletedDate) ? 1 : currentStreak + 1,
+    currentStreak: goalMet
+      ? (shouldBreakStreak(habit.lastCompletedDate) ? 1 : currentStreak + 1)
+      : currentStreak,
   };
 
   if (value !== undefined && habit.type === 'number') {
     updatedHabit.lastValue = value;
   }
 
-  // Calculate XP for linked skill
-  const xpGained = calculateHabitXP(habit, value);
-  
+  const xpGained = goalMet ? calculateHabitXP(habit, value) : 0;
+
   let updatedProfile = { ...profile };
   let tierPromotion: { skillName: string; oldTier: string; newTier: string } | undefined;
 
-  // Update linked skill if exists
-  if (habit.linkedSkill) {
-    const skillIndex = profile.skills.findIndex(s => s.id === habit.linkedSkill || s.name === habit.linkedSkill);
-    
+  // Update linked skill XP
+  if (goalMet && habit.linkedSkill) {
+    const skillIndex = profile.skills.findIndex(
+      s => s.id === habit.linkedSkill || s.name === habit.linkedSkill
+    );
+
     if (skillIndex !== -1) {
       const skill = profile.skills[skillIndex];
       const oldTier = skill.tier;
@@ -84,23 +98,20 @@ export function performHabitCompletion(
       updatedProfile.skills = [...profile.skills];
       updatedProfile.skills[skillIndex] = updatedSkill;
 
-      // Check if tier changed
       if (oldTier !== newTier) {
-        tierPromotion = {
-          skillName: skill.name,
-          oldTier,
-          newTier,
-        };
+        tierPromotion = { skillName: skill.name, oldTier, newTier };
       }
     }
   }
 
-  // Update Will Power
-  const currentWP = profile.stats.willPower || 1000;
-  updatedProfile.stats = {
-    ...profile.stats,
-    willPower: currentWP + willPowerChange,
-  };
+  // Update WillPower
+  if (goalMet) {
+    const currentWP = profile.stats.willPower ?? 0;
+    updatedProfile.stats = {
+      ...profile.stats,
+      willPower: Math.round((currentWP + willPowerChange) * 10) / 10,
+    };
+  }
 
   // Update habit in profile
   const habitIndex = profile.habits.findIndex(h => h.id === habit.id);
@@ -109,18 +120,15 @@ export function performHabitCompletion(
     updatedProfile.habits[habitIndex] = updatedHabit;
   }
 
-  return {
-    updatedHabit,
-    updatedProfile,
-    willPowerChange,
-    xpGained,
-    tierPromotion,
-  };
+  // Recalculate level from updated habit completions
+  updatedProfile.level = calculateCharacterLevel(updatedProfile.habits);
+
+  return { updatedHabit, updatedProfile, willPowerChange, xpGained, tierPromotion, goalMet };
 }
 
 /**
- * Miss a habit - apply penalty
- * Only affects Will Power (Knowledge/Luck/Intelligence have no penalties)
+ * Miss a habit — apply WillPower penalty proportional to broken streak.
+ * No penalty if streak was 0 (habit was never maintained).
  */
 export function performHabitMiss(
   habit: Habit,
@@ -130,63 +138,47 @@ export function performHabitMiss(
   updatedProfile: CharacterProfile;
   willPowerChange: number;
 } {
-  const currentCompletions = habit.totalCompletions || 0;
-  
-  // Calculate Will Power penalty
-  const willPowerChange = calculateWillPowerChange(0, currentCompletions);
+  const currentStreak = habit.currentStreak || 0;
+  const penalty = calculateWillPowerPenalty(currentStreak);
+  const willPowerChange = -penalty;
 
-  // Reset streak
   const updatedHabit: Habit = {
     ...habit,
     currentStreak: 0,
   };
 
-  // Apply penalty
-  const currentWP = profile.stats.willPower || 1000;
+  const currentWP = profile.stats.willPower ?? 0;
   const updatedProfile: CharacterProfile = {
     ...profile,
     stats: {
       ...profile.stats,
-      willPower: Math.max(0, currentWP + willPowerChange), // Floor at 0
+      willPower: Math.max(0, Math.round((currentWP + willPowerChange) * 10) / 10),
     },
   };
 
-  // Update habit in profile
   const habitIndex = profile.habits.findIndex(h => h.id === habit.id);
   if (habitIndex !== -1) {
     updatedProfile.habits = [...profile.habits];
     updatedProfile.habits[habitIndex] = updatedHabit;
   }
 
-  return {
-    updatedHabit,
-    updatedProfile,
-    willPowerChange,
-  };
+  return { updatedHabit, updatedProfile, willPowerChange };
 }
 
 /**
- * Check all habits for missed days and apply penalties
- * Should be run daily or when user opens the app
+ * Check all habits for missed days and apply penalties.
+ * Should be run when the user opens the app each day.
  */
 export function checkMissedHabits(profile: CharacterProfile): CharacterProfile {
   let updatedProfile = { ...profile };
-  let totalPenalty = 0;
 
   profile.habits.forEach(habit => {
-    // If habit should have been done but wasn't (streak broken)
     if (shouldBreakStreak(habit.lastCompletedDate) && habit.currentStreak > 0) {
       const result = performHabitMiss(habit, updatedProfile);
       updatedProfile = result.updatedProfile;
-      totalPenalty += result.willPowerChange;
-      
-      console.log(`⚠️ ${habit.name}: Streak broken. Will Power ${result.willPowerChange.toFixed(2)}`);
+      console.log(`⚠️ ${habit.name}: Streak broken. WP ${result.willPowerChange}`);
     }
   });
-
-  if (totalPenalty < 0) {
-    console.log(`📉 Total Will Power penalty: ${totalPenalty.toFixed(2)}`);
-  }
 
   return updatedProfile;
 }

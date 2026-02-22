@@ -11,7 +11,7 @@ export function MonthlyTracker() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedHabit, setSelectedHabit] = useState<string | null>(null);
   const [monthlyData, setMonthlyData] = useState<Record<string, Record<string, Record<number, number>>>>({});
-  const [isLoaded, setIsLoaded] = useState(false); // ADD THIS LINE
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -30,59 +30,70 @@ export function MonthlyTracker() {
   const today = isCurrentMonth ? now.getDate() : null;
 
   // Load from localStorage - runs ONCE on mount
-useEffect(() => {
-  const saved = localStorage.getItem('life-rpg-monthly-tracker');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      setMonthlyData(parsed);
-      console.log('✅ Monthly data loaded from localStorage');
-    } catch (e) {
-      console.error('❌ Failed to load monthly data:', e);
-    }
-  }
-  setIsLoaded(true); // Mark as loaded even if nothing was in storage
-}, []);
-
-// Save to localStorage - only AFTER initial load
-useEffect(() => {
-  if (isLoaded) {
-    localStorage.setItem('life-rpg-monthly-tracker', JSON.stringify(monthlyData));
-    console.log('💾 Monthly data saved to localStorage');
-  }
-}, [monthlyData, isLoaded]);
-
-const handleValueChange = (habitId: string, day: number, value: string) => {
-  setMonthlyData(prev => {
-    const newData = { ...prev };
-    if (!newData[habitId]) newData[habitId] = {};
-    if (!newData[habitId][currentMonthKey]) newData[habitId][currentMonthKey] = {};
-
-    if (value === '') {
-      delete newData[habitId][currentMonthKey][day];
-    } else {
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue)) {
-        newData[habitId][currentMonthKey][day] = numValue;
+  useEffect(() => {
+    const saved = localStorage.getItem('life-rpg-monthly-tracker');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setMonthlyData(parsed);
+        console.log('✓ Monthly data loaded from localStorage');
+      } catch (e) {
+        console.error('✗ Failed to load monthly data:', e);
       }
     }
-    return newData;
-  });
+    setIsLoaded(true);
+  }, []);
 
-  // Trigger formula engine update OUTSIDE of state setter
-  if (day === today && value !== '') {
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
+  // Save to localStorage - only AFTER initial load
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem('life-rpg-monthly-tracker', JSON.stringify(monthlyData));
+      console.log('💾 Monthly data saved to localStorage');
+    }
+  }, [monthlyData, isLoaded]);
+
+  const handleValueChange = (habitId: string, day: number, value: string) => {
+    setMonthlyData(prev => {
+      const newData = { ...prev };
+      if (!newData[habitId]) newData[habitId] = {};
+      if (!newData[habitId][currentMonthKey]) newData[habitId][currentMonthKey] = {};
+
+      if (value === '') {
+        delete newData[habitId][currentMonthKey][day];
+      } else {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          newData[habitId][currentMonthKey][day] = numValue;
+        }
+      }
+      return newData;
+    });
+
+    // For boolean habits complete immediately on change; number habits wait for blur
+    if (day === today && value !== '') {
       const habit = habits.find(h => h.id === habitId);
-      if (habit) {
-        // Use setTimeout to defer until next tick (after render completes)
-        setTimeout(() => {
-          completeHabit(habitId, habit.type === 'number' ? numValue : undefined);
-        }, 0);
+      if (habit && habit.type === 'boolean') {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+          setTimeout(() => {
+            completeHabit(habitId, undefined);
+          }, 0);
+        }
       }
     }
-  }
-};
+  };
+
+  // For number-type habits: fire completeHabit once when the user finishes
+  // typing (onBlur), so the stat engine receives the final value, not each
+  // intermediate keystroke.
+  const handleNumberBlur = (habitId: string, day: number) => {
+    if (day !== today) return;
+    const stored = monthlyData[habitId]?.[currentMonthKey]?.[day];
+    if (stored === undefined) return;
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+    completeHabit(habitId, stored);
+  };
 
   const getValue = (habitId: string, day: number) => {
     const value = monthlyData[habitId]?.[currentMonthKey]?.[day];
@@ -124,59 +135,62 @@ const handleValueChange = (habitId: string, day: number, value: string) => {
 
   if (habits.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-400 mb-4">No habits yet!</p>
-        <p className="text-sm text-gray-500">Create your first habit to start tracking.</p>
+      <div className="py-16 text-center">
+        <p className="text-sm text-[var(--text-3)]">No habits yet — create one in Manage Habits.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Month Navigation */}
+      {/* Month navigation */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Monthly Tracker</h2>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={goToPreviousMonth}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-white transition"
-          >
-            ← Previous
-          </button>
-          <span className="text-lg font-semibold text-cyan-400 min-w-[160px] text-center">
-            {monthDisplay}
-          </span>
-          <button
-            onClick={goToNextMonth}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-white transition"
-          >
-            Next →
-          </button>
-          <button
-            onClick={goToCurrentMonth}
-            className="px-3 py-2 text-sm bg-cyan-600 hover:bg-cyan-700 text-white rounded transition"
-          >
-            Today
-          </button>
+        <p className="stat-label">{monthDisplay}</p>
+        <div className="flex items-center gap-2">
+          <button onClick={goToPreviousMonth} className="btn-secondary px-3 py-1.5">←</button>
+          <button onClick={goToNextMonth} className="btn-secondary px-3 py-1.5">→</button>
+          {!isCurrentMonth && (
+            <button onClick={goToCurrentMonth} className="btn-secondary text-xs">Today</button>
+          )}
         </div>
       </div>
 
       {/* Grid + Chart Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
         {/* Left: Data Table */}
-        <div className="overflow-x-auto bg-gray-800/50 rounded-lg border border-gray-700">
+        <div
+          className="overflow-x-auto rounded-xl"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className="sticky left-0 z-20 bg-gray-900 border border-gray-700 px-4 py-2 text-left text-gray-300 font-semibold">
+                <th
+                  className="sticky left-0 z-20 px-4 py-2.5 text-left"
+                  style={{
+                    background: 'var(--surface-2)',
+                    borderRight: '1px solid var(--border)',
+                    borderBottom: '1px solid var(--border)',
+                    color: 'var(--text-3)',
+                    fontSize: '0.625rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
                   Habit
                 </th>
                 {days.map(day => (
                   <th
                     key={day}
-                    className={`border border-gray-700 px-2 py-2 text-center min-w-[60px] font-medium ${
-                      today === day ? 'bg-cyan-900/50 text-cyan-400' : 'bg-gray-800 text-gray-400'
-                    }`}
+                    className="px-0 py-2 text-center w-[34px]"
+                    style={{
+                      background: today === day ? 'var(--accent-10)' : 'var(--surface-2)',
+                      borderBottom: '1px solid var(--border)',
+                      color: today === day ? 'var(--accent)' : 'var(--text-3)',
+                      fontSize: '0.625rem',
+                      fontWeight: today === day ? 700 : 500,
+                    }}
                   >
                     {day}
                   </th>
@@ -188,40 +202,71 @@ const handleValueChange = (habitId: string, day: number, value: string) => {
                 <tr
                   key={habit.id}
                   onClick={() => setSelectedHabit(habit.id)}
-                  className={`cursor-pointer transition ${
-                    selectedHabit === habit.id
-                      ? 'bg-cyan-900/30'
-                      : 'hover:bg-gray-700/30'
-                  }`}
+                  style={{
+                    background: selectedHabit === habit.id ? 'var(--accent-10)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { if (selectedHabit !== habit.id) e.currentTarget.style.background = 'var(--surface-2)'; }}
+                  onMouseLeave={e => { if (selectedHabit !== habit.id) e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <td className="sticky left-0 z-10 bg-gray-900 border border-gray-700 px-4 py-2 font-medium text-white">
+                  <td
+                    className="sticky left-0 z-10 px-4 py-2 text-sm font-medium"
+                    style={{
+                      background: 'var(--surface)',
+                      borderRight: '1px solid var(--border)',
+                      color: 'var(--text)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {habit.name}
-                    {habit.unit && (
-                      <span className="text-gray-500 text-sm ml-2">({habit.unit})</span>
-                    )}
                   </td>
-                  {days.map(day => (
-                    <td
-                      key={day}
-                      className={`border border-gray-700 p-0 ${
-                        today === day ? 'bg-cyan-900/20' : ''
-                      }`}
-                    >
-                        <input
-                        type="number"
-                        step="1"
-                        min="0"
-                        style={{ 
-                            color: '#ffffff',
-                            backgroundColor: today === day ? 'rgba(8, 145, 178, 0.2)' : 'transparent'
-                        }}
-                        className={`w-full px-2 py-2 text-center border-0 focus:outline-none focus:ring-2 focus:ring-cyan-500`}
-                        value={getValue(habit.id, day)}
-                        onChange={(e) => handleValueChange(habit.id, day, e.target.value)}
-                        placeholder="-"
-                        />
-                    </td>
-                  ))}
+                  {days.map(day => {
+                    const rawValue = getValue(habit.id, day);
+                    const numericValue = rawValue === '' ? 0 : Number(rawValue);
+                    const meetsGoal = habit.type === 'number' && habit.dailyGoal !== undefined && numericValue >= habit.dailyGoal;
+
+                    return (
+                      <td
+                        key={day}
+                        className="p-0 w-[34px] h-[34px]"
+                        style={{ borderRight: '1px solid var(--border)' }}
+                      >
+                        {habit.type === 'boolean' ? (
+                          <div className="flex items-center justify-center w-full h-full">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 cursor-pointer accent-cyan-400"
+                              style={{ opacity: today === day || numericValue === 1 ? 1 : 0.35 }}
+                              checked={numericValue === 1}
+                              onChange={e => handleValueChange(habit.id, day, e.target.checked ? '1' : '0')}
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              padding: '0 4px',
+                              textAlign: 'center',
+                              fontSize: '0.6875rem',
+                              border: 'none',
+                              outline: 'none',
+                              background: today === day ? 'var(--accent-10)' : 'transparent',
+                              color: meetsGoal ? 'var(--stat-kn)' : 'var(--text-2)',
+                            }}
+                            value={rawValue === '' ? '' : numericValue}
+                            onChange={e => handleValueChange(habit.id, day, e.target.value)}
+                            onBlur={() => handleNumberBlur(habit.id, day)}
+                            placeholder="·"
+                          />
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -229,45 +274,46 @@ const handleValueChange = (habitId: string, day: number, value: string) => {
         </div>
 
         {/* Right: Chart */}
-        <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-6">
-          <h3 className="text-xl font-semibold mb-4 text-white">
-            {selectedHabitObj ? `${selectedHabitObj.name} Progress` : 'Habit Progress'}
-          </h3>
+        <div className="rounded-xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="stat-label mb-4">
+            {selectedHabitObj ? selectedHabitObj.name : 'Select a habit'}
+          </p>
           {selectedHabit ? (
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={380}>
               <LineChart data={getChartData()}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  dataKey="day" 
-                  stroke="#9ca3af"
-                  label={{ value: 'Day', position: 'insideBottom', offset: -5, fill: '#9ca3af' }}
+                <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.05)" />
+                <XAxis
+                  dataKey="day"
+                  stroke="var(--text-3)"
+                  tick={{ fill: 'var(--text-3)', fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
                 />
-                <YAxis 
-                  stroke="#9ca3af"
-                  label={{
-                    value: selectedHabitObj?.unit || 'Value',
-                    angle: -90,
-                    position: 'insideLeft',
-                    fill: '#9ca3af'
-                  }}
+                <YAxis
+                  stroke="var(--text-3)"
+                  tick={{ fill: 'var(--text-3)', fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  label={{ value: selectedHabitObj?.unit || '', angle: -90, position: 'insideLeft', fill: 'var(--text-3)', fontSize: 10 }}
                 />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151' }}
-                  labelStyle={{ color: '#e5e7eb' }}
+                <Tooltip
+                  contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '0.5rem', fontSize: '0.75rem' }}
+                  labelStyle={{ color: 'var(--text-2)' }}
+                  itemStyle={{ color: 'var(--accent)' }}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#06b6d4" 
-                  strokeWidth={3}
-                  dot={{ fill: '#06b6d4', r: 4 }}
-                  activeDot={{ r: 6 }}
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="var(--accent)"
+                  strokeWidth={2}
+                  dot={{ fill: 'var(--accent)', r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, strokeWidth: 0 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[400px]">
-              <p className="text-gray-500">Click a habit row to view progress</p>
+            <div className="flex items-center justify-center h-[380px]">
+              <p className="text-xs text-[var(--text-3)]">Select a habit row to view its chart</p>
             </div>
           )}
         </div>

@@ -8,7 +8,7 @@ import { performHabitCompletion, performHabitMiss, checkMissedHabits } from '@/l
 
 export function useHabits() {
   const { profile, addHabit, updateHabit, deleteHabit, updateProfile } = useProfileContext();
-  
+
   const habits = profile?.habits || [];
 
   /**
@@ -20,22 +20,27 @@ export function useHabits() {
 
     try {
       const result = performHabitCompletion(habit, profile, value);
-      
-      // Update the entire profile with all changes
+
+      // Update the entire profile with all changes (including recalculated level)
       updateProfile({
         habits: result.updatedProfile.habits,
         skills: result.updatedProfile.skills,
         stats: result.updatedProfile.stats,
+        level: result.updatedProfile.level,
       });
 
       // Log success
-      console.log(`✅ ${habit.name} completed!`);
-      console.log(`   Will Power: ${result.willPowerChange > 0 ? '+' : ''}${result.willPowerChange.toFixed(2)}`);
-      if (result.xpGained > 0) {
-        console.log(`   XP gained: +${result.xpGained}`);
-      }
-      if (result.tierPromotion) {
-        console.log(`   🎉 ${result.tierPromotion.skillName} promoted: ${result.tierPromotion.oldTier} → ${result.tierPromotion.newTier}!`);
+      if (result.goalMet) {
+        console.log(`✅ ${habit.name} completed!`);
+        console.log(`   Will Power: ${result.willPowerChange > 0 ? '+' : ''}${result.willPowerChange.toFixed(2)}`);
+        if (result.xpGained > 0) {
+          console.log(`   XP gained: +${result.xpGained}`);
+        }
+        if (result.tierPromotion) {
+          console.log(`   🎉 ${result.tierPromotion.skillName} promoted: ${result.tierPromotion.oldTier} → ${result.tierPromotion.newTier}!`);
+        }
+      } else {
+        console.log(`⚠️ ${habit.name} logged, but goal not met (no rewards)`);
       }
 
       return result;
@@ -54,7 +59,7 @@ export function useHabits() {
     if (!habit || !profile) return;
 
     const result = performHabitMiss(habit, profile);
-    
+
     updateProfile({
       habits: result.updatedProfile.habits,
       stats: result.updatedProfile.stats,
@@ -71,7 +76,7 @@ export function useHabits() {
     if (!profile) return;
 
     const updatedProfile = checkMissedHabits(profile);
-    
+
     updateProfile({
       habits: updatedProfile.habits,
       stats: updatedProfile.stats,

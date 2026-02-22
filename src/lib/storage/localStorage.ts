@@ -3,7 +3,22 @@
 import { CharacterProfile, Stats, Skill, Habit } from '../models/types';
 
 const STORAGE_KEY = 'life-rpg-profile';
+const AVATAR_KEY = 'life-rpg-avatar';
 const STORAGE_VERSION = 1;
+
+// ── Avatar (device-local, never synced to database) ──────────────────────────
+
+export function saveAvatar(base64: string): void {
+  localStorage.setItem(AVATAR_KEY, base64);
+}
+
+export function loadAvatar(): string | null {
+  return localStorage.getItem(AVATAR_KEY);
+}
+
+export function deleteAvatar(): void {
+  localStorage.removeItem(AVATAR_KEY);
+}
 
 /**
  * Initialize a new character profile with default values
@@ -11,12 +26,12 @@ const STORAGE_VERSION = 1;
 export function initializeProfile(name: string): CharacterProfile {
   return {
     name,
-    level: 100, // Starting level
+    level: 0,
     stats: {
-      willPower: 1000, // Starting ELO rating
-      knowledge: 0,
-      luck: 0,
-      intelligence: 0,
+      willPower: 1,
+      knowledge: 1,
+      luck: 1,
+      intelligence: 1,
     },
     skills: [],
     habits: [],
