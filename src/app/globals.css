@@ -184,3 +184,91 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+/* ── Responsive layout helpers ──────────────────────────────────────────────── */
+/* Used in place of inline styles so media queries can override them.           */
+
+.page-header-inner {
+  max-width: 896px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.page-main {
+  flex: 1;
+  max-width: 896px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  width: 100%;
+}
+
+.page-footer-inner {
+  max-width: 896px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dashboard-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.dashboard-profile {
+  width: 340px;
+  flex-shrink: 0;
+}
+
+.dashboard-chart {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-chart-inner {
+  width: 100%;
+  padding-right: 2rem;
+}
+
+/* Tracker chart: responsive height wrapper */
+.tracker-chart-box { height: 380px; }
+
+/* ── Mobile ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Tighter tab padding so all three tabs fit at 320px */
+  .tab { padding: 0.875rem 0.625rem; }
+
+  .page-header-inner { padding: 0 0.875rem; }
+  .page-main        { padding: 1.25rem 0.875rem; }
+
+  /* Dashboard: stack profile card above radar chart */
+  .dashboard-layout       { flex-direction: column; }
+  .dashboard-profile      { width: 100%; }
+  .dashboard-chart        { display: block; width: 100%; }
+  .dashboard-chart-inner  { padding-right: 0; }
+
+  /* Footer: hide version label, center-wrap action buttons */
+  .page-footer-inner {
+    padding: 0.625rem 0.875rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .footer-version  { display: none; }
+  .footer-buttons  { justify-content: center; }
+
+  /* Monthly tracker chart: shorter on mobile */
+  .tracker-chart-box { height: 220px; }
+}

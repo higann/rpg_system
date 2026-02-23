@@ -104,7 +104,7 @@ export default function Home() {
         className="border-b sticky top-0 z-50 backdrop-blur-md"
         style={{ borderColor: 'var(--border)', background: 'rgba(9,9,15,0.88)' }}
       >
-        <div style={{ maxWidth: 896, margin: '0 auto', padding: '0 1.5rem' }}>
+        <div className="page-header-inner">
           <div className="flex items-center gap-6">
             <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-[var(--text-3)] pr-4 border-r border-[var(--border)]">
               Life RPG
@@ -115,7 +115,7 @@ export default function Home() {
       </header>
 
       {/* ── Main ───────────────────────────────────────────────────────────── */}
-      <main className="flex-1" style={{ maxWidth: 896, margin: '0 auto', padding: '2rem 1.5rem', width: '100%' }}>
+      <main className="page-main">
 
         {/* ── Dashboard ──────────────────────────────────────────────────── */}
         {activeTab === 'dashboard' && (
@@ -137,10 +137,10 @@ export default function Home() {
             </div>
 
             {/* Two-column layout: profile card fixed 380px left, chart fills right */}
-            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+            <div className="dashboard-layout">
 
               {/* Left — profile card */}
-              <div className="profile-card flex flex-col gap-6" style={{ width: 340, flexShrink: 0 }}>
+              <div className="profile-card dashboard-profile flex flex-col gap-6">
 
                 {/* Avatar + identity */}
                 <div className="text-center">
@@ -303,8 +303,8 @@ export default function Home() {
               </div>
 
               {/* Right — radar chart */}
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: '100%', paddingRight: '2rem' }}>
+              <div className="dashboard-chart">
+                <div className="dashboard-chart-inner">
                   <StatsRadarChart stats={stats} />
                 </div>
               </div>
@@ -337,11 +337,11 @@ export default function Home() {
         className="border-t mt-auto"
         style={{ borderColor: 'var(--border)', background: 'rgba(9,9,15,0.88)' }}
       >
-        <div style={{ maxWidth: 896, margin: '0 auto', padding: '0.75rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-[var(--text-3)]">
+        <div className="page-footer-inner">
+          <p className="footer-version text-[10px] font-semibold tracking-widest uppercase text-[var(--text-3)]">
             Life RPG · v1.0
           </p>
-          <div className="flex gap-2">
+          <div className="footer-buttons">
             <button
               onClick={() => {
                 setHabitsMount(p => ({ key: p.key + 1, subTab: 'manage', adding: true }));

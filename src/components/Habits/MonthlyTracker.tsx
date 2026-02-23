@@ -279,7 +279,8 @@ export function MonthlyTracker() {
             {selectedHabitObj ? selectedHabitObj.name : 'Select a habit'}
           </p>
           {selectedHabit ? (
-            <ResponsiveContainer width="100%" height={380}>
+            <div className="tracker-chart-box">
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={getChartData()}>
                 <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.05)" />
                 <XAxis
@@ -311,8 +312,9 @@ export function MonthlyTracker() {
                 />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           ) : (
-            <div className="flex items-center justify-center h-[380px]">
+            <div className="tracker-chart-box flex items-center justify-center">
               <p className="text-xs text-[var(--text-3)]">Select a habit row to view its chart</p>
             </div>
           )}
