@@ -34,6 +34,11 @@ export function MonthlyTracker() {
   const now = new Date();
   const isCurrentMonth = currentDate.getFullYear() === now.getFullYear() && currentDate.getMonth() === now.getMonth();
   const today = isCurrentMonth ? now.getDate() : null;
+  const isFutureMonth =
+    currentDate.getFullYear() > now.getFullYear() ||
+    (currentDate.getFullYear() === now.getFullYear() && currentDate.getMonth() > now.getMonth());
+  const isFutureDay = (day: number) =>
+    isFutureMonth || (isCurrentMonth && today !== null && day > today);
 
   // Load — Supabase first (source of truth), fall back to localStorage cache
   useEffect(() => {
@@ -70,6 +75,7 @@ export function MonthlyTracker() {
   }, [monthlyData, isLoaded]);
 
   const handleValueChange = (habitId: string, day: number, value: string) => {
+    if (isFutureDay(day)) return;
     setMonthlyData(prev => {
       const newData = { ...prev };
       if (!newData[habitId]) newData[habitId] = {};
@@ -165,7 +171,12 @@ export function MonthlyTracker() {
         <p className="stat-label">{monthDisplay}</p>
         <div className="flex items-center gap-2">
           <button onClick={goToPreviousMonth} className="btn-secondary px-3 py-1.5">←</button>
-          <button onClick={goToNextMonth} className="btn-secondary px-3 py-1.5">→</button>
+          <button
+            onClick={goToNextMonth}
+            className="btn-secondary px-3 py-1.5"
+            disabled={isCurrentMonth}
+            style={{ opacity: isCurrentMonth ? 0.3 : 1, cursor: isCurrentMonth ? 'not-allowed' : 'pointer' }}
+          >→</button>
           {!isCurrentMonth && (
             <button onClick={goToCurrentMonth} className="btn-secondary text-xs">Today</button>
           )}
@@ -207,6 +218,7 @@ export function MonthlyTracker() {
                       color: today === day ? 'var(--accent)' : 'var(--text-3)',
                       fontSize: '0.625rem',
                       fontWeight: today === day ? 700 : 500,
+                      opacity: isFutureDay(day) ? 0.3 : 1,
                     }}
                   >
                     {day}
@@ -253,9 +265,13 @@ export function MonthlyTracker() {
                           <div className="flex items-center justify-center w-full h-full">
                             <input
                               type="checkbox"
-                              className="w-4 h-4 cursor-pointer accent-cyan-400"
-                              style={{ opacity: today === day || numericValue === 1 ? 1 : 0.35 }}
+                              className="w-4 h-4 accent-cyan-400"
+                              style={{
+                                opacity: isFutureDay(day) ? 0.12 : (today === day || numericValue === 1 ? 1 : 0.35),
+                                cursor: isFutureDay(day) ? 'not-allowed' : 'pointer',
+                              }}
                               checked={numericValue === 1}
+                              disabled={isFutureDay(day)}
                               onChange={e => handleValueChange(habit.id, day, e.target.checked ? '1' : '0')}
                             />
                           </div>
@@ -274,8 +290,11 @@ export function MonthlyTracker() {
                               outline: 'none',
                               background: today === day ? 'var(--accent-10)' : 'transparent',
                               color: meetsGoal ? 'var(--stat-kn)' : 'var(--text-2)',
+                              opacity: isFutureDay(day) ? 0.2 : 1,
+                              cursor: isFutureDay(day) ? 'not-allowed' : 'text',
                             }}
                             value={rawValue === '' ? '' : numericValue}
+                            disabled={isFutureDay(day)}
                             onChange={e => handleValueChange(habit.id, day, e.target.value)}
                             onBlur={() => handleNumberBlur(habit.id, day)}
                             placeholder="·"
