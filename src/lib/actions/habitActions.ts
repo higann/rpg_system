@@ -46,6 +46,28 @@ export function performHabitCompletion(
   goalMet: boolean;
 } {
   if (wasCompletedToday(habit.lastCompletedDate)) {
+    // For number habits: allow re-entry within the same day.
+    // Adjust totalVolume by the delta so Knowledge/Luck update correctly.
+    if (habit.type === 'number' && value !== undefined) {
+      const oldValue = habit.lastValue ?? 0;
+      const delta = value - oldValue;
+      const oldVolume = habit.totalVolume ?? oldValue * habit.totalCompletions;
+
+      const updatedHabit: Habit = {
+        ...habit,
+        lastValue: value,
+        totalVolume: Math.max(0, oldVolume + delta),
+      };
+
+      let updatedProfile = { ...profile };
+      const hi = profile.habits.findIndex(h => h.id === habit.id);
+      if (hi !== -1) {
+        updatedProfile.habits = [...profile.habits];
+        updatedProfile.habits[hi] = updatedHabit;
+      }
+
+      return { updatedHabit, updatedProfile, willPowerChange: 0, xpGained: 0, goalMet: meetsGoal(habit, value) };
+    }
     throw new Error('Habit already completed today');
   }
 
@@ -68,6 +90,7 @@ export function performHabitCompletion(
 
   if (value !== undefined && habit.type === 'number') {
     updatedHabit.lastValue = value;
+    updatedHabit.totalVolume = (habit.totalVolume ?? 0) + value;
   }
 
   const xpGained = goalMet ? calculateHabitXP(habit, value) : 0;

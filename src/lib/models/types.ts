@@ -31,7 +31,8 @@ export interface Habit {
   totalCompletions: number; // For freshness calculation
 
   // For volume stats
-  lastValue?: number; // Last entered value for number-type habits
+  lastValue?: number;   // Last entered value for number-type habits
+  totalVolume?: number; // Cumulative sum of all submitted values (used for Knowledge/Luck)
 
   // Linked skill (affects Intelligence indirectly via XP)
   linkedSkill?: string; // Skill ID or name

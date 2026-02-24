@@ -19,8 +19,11 @@ export function calculateKnowledge(habits: Habit[]): number {
     if (knowledgeConfig) {
       const { volumeMultiplier } = knowledgeConfig;
       
-      if (habit.type === 'number' && habit.lastValue) {
-        totalKnowledge += habit.lastValue * habit.totalCompletions * volumeMultiplier;
+      if (habit.type === 'number') {
+        // Use totalVolume (true cumulative sum). Fall back to lastValue × completions
+        // for habits that pre-date this field.
+        const vol = habit.totalVolume ?? (habit.lastValue ?? 0) * habit.totalCompletions;
+        totalKnowledge += vol * volumeMultiplier;
       } else if (habit.type === 'boolean') {
         totalKnowledge += habit.totalCompletions * volumeMultiplier;
       }
@@ -49,8 +52,9 @@ export function calculateKnowledgeByCategory(habits: Habit[]): Record<string, nu
       const { category, volumeMultiplier } = knowledgeConfig;
       
       let value = 0;
-      if (habit.type === 'number' && habit.lastValue) {
-        value = habit.lastValue * habit.totalCompletions * volumeMultiplier;
+      if (habit.type === 'number') {
+        const vol = habit.totalVolume ?? (habit.lastValue ?? 0) * habit.totalCompletions;
+        value = vol * volumeMultiplier;
       } else if (habit.type === 'boolean') {
         value = habit.totalCompletions * volumeMultiplier;
       }

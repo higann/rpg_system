@@ -18,8 +18,9 @@ export function calculateLuck(habits: Habit[]): number {
     if (luckConfig) {
       const { volumeMultiplier } = luckConfig;
       
-      if (habit.type === 'number' && habit.lastValue) {
-        totalLuck += habit.lastValue * habit.totalCompletions * volumeMultiplier;
+      if (habit.type === 'number') {
+        const vol = habit.totalVolume ?? (habit.lastValue ?? 0) * habit.totalCompletions;
+        totalLuck += vol * volumeMultiplier;
       } else if (habit.type === 'boolean') {
         totalLuck += habit.totalCompletions * volumeMultiplier;
       }
