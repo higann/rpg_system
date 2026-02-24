@@ -1,17 +1,23 @@
 // src/components/Habits/MonthlyTracker.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useHabits } from '@/hooks/useHabits';
+import { useProfileContext } from '@/contexts/ProfileContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Habit } from '@/lib/models/types';
+import { fetchMonthlyTrackerFromDB, saveMonthlyTrackerToDB } from '@/lib/storage/supabaseStorage';
+
+const TRACKER_KEY = 'life-rpg-monthly-tracker';
 
 export function MonthlyTracker() {
   const { habits, completeHabit } = useHabits();
+  const { user } = useProfileContext();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedHabit, setSelectedHabit] = useState<string | null>(null);
   const [monthlyData, setMonthlyData] = useState<Record<string, Record<string, Record<number, number>>>>({});
   const [isLoaded, setIsLoaded] = useState(false);
+  const dbSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -29,26 +35,37 @@ export function MonthlyTracker() {
   const isCurrentMonth = currentDate.getFullYear() === now.getFullYear() && currentDate.getMonth() === now.getMonth();
   const today = isCurrentMonth ? now.getDate() : null;
 
-  // Load from localStorage - runs ONCE on mount
+  // Load — Supabase first (source of truth), fall back to localStorage cache
   useEffect(() => {
-    const saved = localStorage.getItem('life-rpg-monthly-tracker');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setMonthlyData(parsed);
-        console.log('✓ Monthly data loaded from localStorage');
-      } catch (e) {
-        console.error('✗ Failed to load monthly data:', e);
+    async function load() {
+      if (user) {
+        const dbData = await fetchMonthlyTrackerFromDB(user.id);
+        if (dbData) {
+          setMonthlyData(dbData);
+          localStorage.setItem(TRACKER_KEY, JSON.stringify(dbData));
+          setIsLoaded(true);
+          return;
+        }
       }
+      // No DB entry yet — check localStorage (first sync or offline)
+      const saved = localStorage.getItem(TRACKER_KEY);
+      if (saved) {
+        try { setMonthlyData(JSON.parse(saved)); } catch { /* ignore corrupt data */ }
+      }
+      setIsLoaded(true);
     }
-    setIsLoaded(true);
-  }, []);
+    load();
+  }, [user?.id]);
 
-  // Save to localStorage - only AFTER initial load
+  // Save — localStorage immediately, Supabase debounced by 1.5s
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('life-rpg-monthly-tracker', JSON.stringify(monthlyData));
-      console.log('💾 Monthly data saved to localStorage');
+    if (!isLoaded) return;
+    localStorage.setItem(TRACKER_KEY, JSON.stringify(monthlyData));
+    if (user) {
+      if (dbSaveTimer.current) clearTimeout(dbSaveTimer.current);
+      dbSaveTimer.current = setTimeout(() => {
+        saveMonthlyTrackerToDB(user.id, monthlyData).catch(console.error);
+      }, 1500);
     }
   }, [monthlyData, isLoaded]);
 
