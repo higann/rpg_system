@@ -46,27 +46,72 @@ export function performHabitCompletion(
   goalMet: boolean;
 } {
   if (wasCompletedToday(habit.lastCompletedDate)) {
-    // For number habits: allow re-entry within the same day.
-    // Adjust totalVolume by the delta so Knowledge/Luck update correctly.
+    // For number habits: allow same-day correction.
+    // Recalculate the delta for every affected stat so corrections are exact.
     if (habit.type === 'number' && value !== undefined) {
-      const oldValue = habit.lastValue ?? 0;
-      const delta = value - oldValue;
-      const oldVolume = habit.totalVolume ?? oldValue * habit.totalCompletions;
+      const oldValue    = habit.lastValue ?? 0;
+      const oldGoalMet  = meetsGoal(habit, oldValue);
+      const newGoalMet  = meetsGoal(habit, value);
+      const oldVolume   = habit.totalVolume ?? oldValue * habit.totalCompletions;
 
       const updatedHabit: Habit = {
         ...habit,
-        lastValue: value,
-        totalVolume: Math.max(0, oldVolume + delta),
+        lastValue:   value,
+        totalVolume: Math.max(0, oldVolume + (value - oldValue)),
       };
 
       let updatedProfile = { ...profile };
+
+      // ── Skill XP correction ────────────────────────────────────────────────
+      if (habit.linkedSkill) {
+        const oldXP  = oldGoalMet ? calculateHabitXP(habit, oldValue) : 0;
+        const newXP  = newGoalMet ? calculateHabitXP(habit, value)    : 0;
+        const xpDelta = newXP - oldXP;
+        if (xpDelta !== 0) {
+          const si = profile.skills.findIndex(s => s.id === habit.linkedSkill || s.name === habit.linkedSkill);
+          if (si !== -1) {
+            const skill        = profile.skills[si];
+            const correctedXP  = Math.max(0, skill.xp + xpDelta);
+            const newTier      = determineSkillTier(correctedXP);
+            updatedProfile.skills = [...profile.skills];
+            updatedProfile.skills[si] = { ...skill, xp: correctedXP, tier: newTier, intelligenceContribution: getTierPoints(newTier) };
+          }
+        }
+      }
+
+      // ── WP + completion count correction if goal-met status flipped ────────
+      if (oldGoalMet && !newGoalMet) {
+        // Was counted; now below goal → reverse WP and decrement completions
+        const wpToReverse = habit.lastWPGain ?? 0;
+        const currentWP   = updatedProfile.stats.willPower ?? 0;
+        updatedProfile.stats = {
+          ...updatedProfile.stats,
+          willPower: Math.max(0, Math.round((currentWP - wpToReverse) * 10) / 10),
+        };
+        updatedHabit.totalCompletions = Math.max(0, habit.totalCompletions - 1);
+        updatedHabit.currentStreak    = Math.max(0, habit.currentStreak - 1);
+        updatedHabit.lastWPGain       = 0;
+      } else if (!oldGoalMet && newGoalMet) {
+        // Was below goal; now meets it → grant WP and count the completion
+        const wpGain    = calculateWillPowerGain(habit.currentStreak);
+        const currentWP = updatedProfile.stats.willPower ?? 0;
+        updatedProfile.stats = {
+          ...updatedProfile.stats,
+          willPower: Math.round((currentWP + wpGain) * 10) / 10,
+        };
+        updatedHabit.totalCompletions = habit.totalCompletions + 1;
+        updatedHabit.currentStreak    = habit.currentStreak + 1;
+        updatedHabit.lastWPGain       = wpGain;
+      }
+
       const hi = profile.habits.findIndex(h => h.id === habit.id);
       if (hi !== -1) {
         updatedProfile.habits = [...profile.habits];
         updatedProfile.habits[hi] = updatedHabit;
       }
+      updatedProfile.level = calculateCharacterLevel(updatedProfile.habits);
 
-      return { updatedHabit, updatedProfile, willPowerChange: 0, xpGained: 0, goalMet: meetsGoal(habit, value) };
+      return { updatedHabit, updatedProfile, willPowerChange: 0, xpGained: 0, goalMet: newGoalMet };
     }
     throw new Error('Habit already completed today');
   }
@@ -86,6 +131,7 @@ export function performHabitCompletion(
     currentStreak: goalMet
       ? (shouldBreakStreak(habit.lastCompletedDate) ? 1 : currentStreak + 1)
       : currentStreak,
+    lastWPGain: willPowerChange, // stored so same-day corrections can reverse it exactly
   };
 
   if (value !== undefined && habit.type === 'number') {

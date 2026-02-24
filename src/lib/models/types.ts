@@ -33,6 +33,7 @@ export interface Habit {
   // For volume stats
   lastValue?: number;   // Last entered value for number-type habits
   totalVolume?: number; // Cumulative sum of all submitted values (used for Knowledge/Luck)
+  lastWPGain?: number;  // WP granted on last completion — stored so same-day corrections can reverse it exactly
 
   // Linked skill (affects Intelligence indirectly via XP)
   linkedSkill?: string; // Skill ID or name
